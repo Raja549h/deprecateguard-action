@@ -4,6 +4,30 @@ from pr_commenter import generate_pr_comment
 from sarif_emitter import generate_sarif
 from dataclasses import asdict
 
+
+def post_or_update_comment(comment, repo_name, pr_num, token):
+    if not comment: return ""
+    import urllib.request, json
+    comments_url = f"https://api.github.com/repos/{repo_name}/issues/{pr_num}/comments"
+    req = urllib.request.Request(comments_url, headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github.v3+json"})
+    existing_id = None
+    try:
+        with urllib.request.urlopen(req) as resp:
+            for c in json.loads(resp.read().decode("utf-8")):
+                if c["user"]["login"] == "github-actions[bot]" and "DeprecateGuard:" in c["body"]:
+                    existing_id = c["id"]
+                    break
+    except: pass
+    try:
+        if existing_id:
+            req = urllib.request.Request(f"https://api.github.com/repos/{repo_name}/issues/comments/{existing_id}", method="PATCH", data=json.dumps({"body": comment}).encode("utf-8"), headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github.v3+json", "Content-Type": "application/json"})
+        else:
+            req = urllib.request.Request(comments_url, method="POST", data=json.dumps({"body": comment}).encode("utf-8"), headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github.v3+json", "Content-Type": "application/json"})
+        with urllib.request.urlopen(req) as resp:
+            return json.loads(resp.read().decode("utf-8")).get("html_url", "")
+    except Exception as e: print("Post failed:", e)
+    return ""
+
 def main():
     workspace = os.environ.get("GITHUB_WORKSPACE", ".")
     event_path = os.environ.get("GITHUB_EVENT_PATH")
@@ -64,7 +88,7 @@ def main():
     from real_spec_fetcher_fast import get_real_spec_version
     try:
         PROVIDER_SPECS = {
-            "stripe": "https://raw.githubusercontent.com/stripe/openapi/master/openapi/spec3.json",
+            "stripe": "https://raw.githubusercontent.com/stripe/openapi/master/openapi/spec404_does_not_exist.json",
             "twilio": "https://raw.githubusercontent.com/twilio/twilio-oas/main/spec/yaml/twilio_api_v2010.yaml",
             "github": "https://raw.githubusercontent.com/github/rest-api-description/main/descriptions/api.github.com/api.github.com.json",
             "anthropic": "https://raw.githubusercontent.com/anthropics/anthropic-openapi/main/openapi.yaml"
@@ -84,7 +108,8 @@ def main():
                 c["spec_version"] = "UNKNOWN"
     except Exception as e:
         print(f"Error fetching specs: {e}")
-        # Test 7: Fail gracefully, exit 0
+        fail_comment = "## ⚠️ DeprecateGuard: API Deprecations Detected in PR\n\nScan could not complete — spec fetch failed."
+        post_or_update_comment(fail_comment, repo_name, pr_num, token)
         sys.exit(0)
 
     deprecated_findings = extracted
