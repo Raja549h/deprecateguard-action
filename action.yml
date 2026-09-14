@@ -1,0 +1,12 @@
+name: "DeprecateGuard Scanner"
+description: "Zero-Exfiltration API Deprecation Scanner"
+inputs:
+  github_token:
+    description: "GITHUB_TOKEN for posting PR comments"
+    required: true
+    default: ${{ github.token }}
+runs:
+  using: "docker"
+  image: "Dockerfile"
+  env:
+    GITHUB_TOKEN: ${{ inputs.github_token }}
