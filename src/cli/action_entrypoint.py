@@ -1,7 +1,7 @@
 import os, json, urllib.request, urllib.parse, sys
 from multi_extractor import MultiLanguageExtractor
 from pr_commenter import generate_pr_comment
-from sarif_emitter import emit_sarif
+from sarif_emitter import generate_sarif
 from dataclasses import asdict
 
 def main():
@@ -90,9 +90,7 @@ def main():
     deprecated_findings = extracted
     
     # 5. Emit SARIF
-    sarif_output = emit_sarif(deprecated_findings)
-    with open("deprecateguard_results.sarif", "w") as f:
-        json.dump(sarif_output, f)
+    generate_sarif(deprecated_findings, "deprecateguard_results.sarif")
     
     # 6. Generate PR Markdown Comment
     comment = generate_pr_comment(deprecated_findings, diff_files=diff_files, repo_full_name=repo_name)
