@@ -5,6 +5,13 @@ inputs:
     description: "GITHUB_TOKEN for posting PR comments"
     required: true
     default: ${{ github.token }}
+outputs:
+  findings_count:
+    description: "Number of deprecated calls found"
+  sarif_path:
+    description: "Path to generated SARIF file"
+  comment_url:
+    description: "URL of the posted PR comment"
 runs:
   using: "docker"
   image: "Dockerfile"
