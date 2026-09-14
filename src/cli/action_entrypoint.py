@@ -64,7 +64,7 @@ def main():
     from real_spec_fetcher_fast import get_real_spec_version
     try:
         PROVIDER_SPECS = {
-            "stripe": "https://raw.githubusercontent.com/stripe/openapi/master/openapi/spec404_does_not_exist.json",
+            "stripe": "https://raw.githubusercontent.com/stripe/openapi/master/openapi/spec3.json",
             "twilio": "https://raw.githubusercontent.com/twilio/twilio-oas/main/spec/yaml/twilio_api_v2010.yaml",
             "github": "https://raw.githubusercontent.com/github/rest-api-description/main/descriptions/api.github.com/api.github.com.json",
             "anthropic": "https://raw.githubusercontent.com/anthropics/anthropic-openapi/main/openapi.yaml"
