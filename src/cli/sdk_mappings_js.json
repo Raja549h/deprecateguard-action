@@ -1,0 +1,42 @@
+[
+    {
+        "method_path": "stripe.charges.create",
+        "endpoint_template": "https://api.stripe.com/v1/charges",
+        "http_method": "POST",
+        "source_type": "manual",
+        "source_url": "https://docs.stripe.com/api/charges/create",
+        "retrieved_date": "2026-09-15T00:00:00Z"
+    },
+    {
+        "method_path": "stripe.customers.list",
+        "endpoint_template": "https://api.stripe.com/v1/customers",
+        "http_method": "GET",
+        "source_type": "manual",
+        "source_url": "https://docs.stripe.com/api/customers/list",
+        "retrieved_date": "2026-09-15T00:00:00Z"
+    },
+    {
+        "method_path": "stripe.paymentIntents.create",
+        "endpoint_template": "https://api.stripe.com/v1/payment_intents",
+        "http_method": "POST",
+        "source_type": "manual",
+        "source_url": "https://docs.stripe.com/api/payment_intents/create",
+        "retrieved_date": "2026-09-15T00:00:00Z"
+    },
+    {
+        "method_path": "stripe.subscriptions.create",
+        "endpoint_template": "https://api.stripe.com/v1/subscriptions",
+        "http_method": "POST",
+        "source_type": "manual",
+        "source_url": "https://docs.stripe.com/api/subscriptions/create",
+        "retrieved_date": "2026-09-15T00:00:00Z"
+    },
+    {
+        "method_path": "client.messages.create",
+        "endpoint_template": "https://api.twilio.com/2010-04-01/Accounts/{AccountSid}/Messages.json",
+        "http_method": "POST",
+        "source_type": "manual",
+        "source_url": "https://www.twilio.com/docs/sms/api/message-resource#create-a-message-resource",
+        "retrieved_date": "2026-09-15T00:00:00Z"
+    }
+]

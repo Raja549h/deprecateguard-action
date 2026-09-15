@@ -33,8 +33,13 @@ def generate_pr_comment(findings, diff_files=None, repo_full_name="unknown/repo"
         ce = f.get("callee_expression", "unknown")
         ep = f.get("resolved_endpoint", "unknown")
         sv = f.get("spec_version", "UNKNOWN")
+        lang = f.get("language", "unknown").capitalize()
+        if lang == "Py": lang = "Python"
+        elif lang == "Javascript": lang = "JavaScript"
+        elif lang == "Typescript": lang = "TypeScript"
         
         block = f"### `{fp}:{ln}`\n"
+        block += f"- **Language:** {lang}\n"
         block += f"- **SDK Method:** `{ce}`\n"
         block += f"- **Resolves To:** `{ep}`\n"
         block += f"- **Spec Version:** `{sv}`\n"

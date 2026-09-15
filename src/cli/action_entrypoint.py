@@ -1,5 +1,6 @@
 import os, json, urllib.request, urllib.parse, sys
 from multi_extractor import MultiLanguageExtractor
+from extractors.js_extractor import JSExtractor
 from pr_commenter import generate_pr_comment
 from sarif_emitter import generate_sarif
 from dataclasses import asdict
@@ -49,33 +50,47 @@ def main():
             print("PR-comment mode: no pull request context, exiting. Use mode: scheduled-audit for whole-repo scans.")
             return
         pr_num = event_data["pull_request"]["number"]
-        # 1. Diff Scoping: fetch PR diff
-        diff_url = f"https://api.github.com/repos/{repo_name}/pulls/{pr_num}/files"
-        req = urllib.request.Request(diff_url, headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github.v3+json"})
-        try:
-            with urllib.request.urlopen(req) as resp:
-                files_data = json.loads(resp.read().decode("utf-8"))
-                diff_files = set(f["filename"] for f in files_data if f["status"] != "removed")
-        except Exception as e:
-            print("Failed to get PR files:", e)
-            diff_files = None # Fallback to all files
-    elif mode == "scheduled-audit":
+        
+    diff_files = None
+    
+    # 1. Scope scanning
+    if mode == "pr-comment":
+        diff_files = get_diff_files(repo_name, pr_num, token)
+        if not diff_files:
+            print("No Python/JS/TS files found in PR diff.")
+            if os.environ.get("GITHUB_OUTPUT"):
+                with open(os.environ.get("GITHUB_OUTPUT"), "a") as f:
+                    f.write("findings_count=0\n")
+            sys.exit(0)
+    else:
         pass # diff_files remains None (whole repo)
         
     # 2. Extract calls
-    extractor = MultiLanguageExtractor("py")
+    py_extractor = MultiLanguageExtractor("py")
+    js_extractor = JSExtractor("javascript")
+    ts_extractor = JSExtractor("typescript")
+    
     extracted = []
     for root, dirs, files in os.walk(workspace):
         for file in files:
-            if file.endswith(".py"):
+            ext = os.path.splitext(file)[1].lower()
+            if ext in [".py", ".js", ".jsx", ".ts", ".tsx"]:
                 path = os.path.join(root, file)
                 rel_path = os.path.relpath(path, workspace).replace("\\", "/")
                 # Skip if not in diff (Diff scoping performance optimization)
-                if diff_files is not None and rel_path not in diff_files:
+                if mode == "pr-comment" and diff_files is not None and rel_path not in diff_files:
                     continue
                 try:
                     with open(path, "rb") as f: code = f.read()
-                    calls = extractor.scan_code(code, rel_path)
+                    if ext == ".py":
+                        calls = py_extractor.scan_code(code, rel_path)
+                    elif ext in [".js", ".jsx"]:
+                        calls = js_extractor.scan_code(code, rel_path)
+                    elif ext in [".ts", ".tsx"]:
+                        calls = ts_extractor.scan_code(code, rel_path)
+                    else:
+                        calls = []
+                        
                     for c in calls:
                         d = asdict(c)
                         d["file_path"] = d["file"]
