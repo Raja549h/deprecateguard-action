@@ -192,19 +192,23 @@ def post_or_update_audit_issue(repo_name, findings, token, run_url):
     
     if "## ⚠️ DeprecateGuard: API Deprecations Detected in PR" in findings_body:
         findings_body = findings_body.replace("## ⚠️ DeprecateGuard: API Deprecations Detected in PR\n\n", "")
+    findings_body = findings_body.replace("in your diff", "in your repository")
     
     timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
     trigger = os.environ.get("GITHUB_EVENT_NAME", "manual")
-    commit_sha = os.environ.get("GITHUB_SHA", "unknown")
+    if trigger == "schedule":
+        trigger = "schedule"
+    else:
+        trigger = "manual"
+        
     hard_count = sum(1 for f in findings if f.get("finding_type") == "hard")
     soft_count = sum(1 for f in findings if f.get("finding_type") == "soft")
     
     body = f"## ⚠️ DeprecateGuard: Scheduled Audit Report\n\n"
     body += f"**Last Scan Timestamp:** {timestamp}\n"
     body += f"**Scan Trigger:** {trigger}\n"
-    body += f"**Commit SHA:** `{commit_sha}`\n"
+    body += f"**Commit SHA:** `{os.environ.get('GITHUB_SHA', 'unknown')}`\n"
     body += f"**Run Logs:** [View Run]({run_url})\n\n"
-    body += f"**Findings:** {hard_count} hard, {soft_count} soft\n\n---\n\n"
     body += findings_body
     
     title = "DeprecateGuard: Scheduled Audit Report"
