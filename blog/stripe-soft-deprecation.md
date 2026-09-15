@@ -48,3 +48,5 @@ Install is three lines of YAML:
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
 ```
+
+If you've run into this same gap — deprecations that no standard tool catches — I'd be interested to hear about it. It seems to be more common than the tooling assumes.

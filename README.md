@@ -2,6 +2,8 @@
 
 A zero-exfiltration GitHub Action that detects deprecated API calls in your codebase before they break production.
 
+Read: [Why Stripe's spec misses deprecations](blog/stripe-soft-deprecation.md)
+
 ## Install
 
 Add to any workflow (e.g. `.github/workflows/deprecateguard.yml`):
