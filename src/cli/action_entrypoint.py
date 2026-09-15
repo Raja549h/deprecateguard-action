@@ -117,49 +117,51 @@ def main():
     # 5. Emit SARIF
     generate_sarif(deprecated_findings, "deprecateguard_results.sarif")
     
-    # 6. Generate PR Markdown Comment
-    comment = generate_pr_comment(deprecated_findings, diff_files=diff_files, repo_full_name=repo_name)
-    
-
     output_count = len(deprecated_findings)
     hard_count = sum(1 for f in deprecated_findings if f.get("finding_type") == "hard")
     soft_count = sum(1 for f in deprecated_findings if f.get("finding_type") == "soft")
     
-    # 7. Post Comment / Deduplicate (Idempotency)
     comment_url = ""
-    if comment:
-        comments_url = f"https://api.github.com/repos/{repo_name}/issues/{pr_num}/comments"
-        req = urllib.request.Request(comments_url, headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github.v3+json"})
-        existing_comment_id = None
-        try:
-            with urllib.request.urlopen(req) as resp:
-                comments = json.loads(resp.read().decode("utf-8"))
-                for c in comments:
-                    if c["user"]["login"] == "github-actions[bot]" and "DeprecateGuard:" in c["body"]:
-                        existing_comment_id = c["id"]
-                        break
-        except Exception:
-            pass
-            
-        if existing_comment_id:
-            update_url = f"https://api.github.com/repos/{repo_name}/issues/comments/{existing_comment_id}"
-            req = urllib.request.Request(update_url, method="PATCH", data=json.dumps({"body": comment}).encode("utf-8"), headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github.v3+json", "Content-Type": "application/json"})
+    audit_issue_url = ""
+
+    if mode == "pr-comment":
+        # 6. Generate PR Markdown Comment
+        comment = generate_pr_comment(deprecated_findings, diff_files=diff_files, repo_full_name=repo_name)
+        if comment:
+            comments_url = f"https://api.github.com/repos/{repo_name}/issues/{pr_num}/comments"
+            req = urllib.request.Request(comments_url, headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github.v3+json"})
+            existing_comment_id = None
             try:
                 with urllib.request.urlopen(req) as resp:
-                    resp_data = json.loads(resp.read().decode("utf-8"))
-                    comment_url = resp_data.get("html_url", "")
-                print(f"Updated existing PR comment {existing_comment_id}.")
-            except Exception as e:
-                print("Failed to update comment:", e)
-        else:
-            req = urllib.request.Request(comments_url, data=json.dumps({"body": comment}).encode("utf-8"), headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github.v3+json", "Content-Type": "application/json"})
-            try:
-                with urllib.request.urlopen(req) as resp:
-                    resp_data = json.loads(resp.read().decode("utf-8"))
-                    comment_url = resp_data.get("html_url", "")
-                print("Posted new PR comment.")
-            except Exception as e:
-                print("Failed to post comment:", e)
+                    comments = json.loads(resp.read().decode("utf-8"))
+                    for c in comments:
+                        if c["user"]["login"] == "github-actions[bot]" and "DeprecateGuard:" in c["body"]:
+                            existing_comment_id = c["id"]
+                            break
+            except Exception:
+                pass
+                
+            if existing_comment_id:
+                update_url = f"https://api.github.com/repos/{repo_name}/issues/comments/{existing_comment_id}"
+                req = urllib.request.Request(update_url, method="PATCH", data=json.dumps({"body": comment}).encode("utf-8"), headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github.v3+json", "Content-Type": "application/json"})
+                try:
+                    with urllib.request.urlopen(req) as resp:
+                        resp_data = json.loads(resp.read().decode("utf-8"))
+                        comment_url = resp_data.get("html_url", "")
+                    print(f"Updated existing PR comment {existing_comment_id}.")
+                except Exception as e:
+                    print("Failed to update comment:", e)
+            else:
+                req = urllib.request.Request(comments_url, data=json.dumps({"body": comment}).encode("utf-8"), headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github.v3+json", "Content-Type": "application/json"})
+                try:
+                    with urllib.request.urlopen(req) as resp:
+                        resp_data = json.loads(resp.read().decode("utf-8"))
+                        comment_url = resp_data.get("html_url", "")
+                    print("Posted new PR comment.")
+                except Exception as e:
+                    print("Failed to post comment:", e)
+    elif mode == "scheduled-audit":
+        audit_issue_url = post_or_update_audit_issue(repo_name, deprecated_findings, token, os.environ.get("GITHUB_SERVER_URL", "https://github.com") + "/" + repo_name + "/actions/runs/" + os.environ.get("GITHUB_RUN_ID", ""))
                 
     # 8. Set Outputs
     github_output = os.environ.get("GITHUB_OUTPUT")
