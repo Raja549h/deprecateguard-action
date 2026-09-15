@@ -5,13 +5,23 @@ inputs:
     description: "GITHUB_TOKEN for posting PR comments"
     required: true
     default: ${{ github.token }}
+  mode:
+    description: "Mode to run in: 'pr-comment' or 'scheduled-audit'"
+    required: false
+    default: "pr-comment"
 outputs:
   findings_count:
     description: "Number of deprecated calls found"
+  hard_findings_count:
+    description: "Number of spec-confirmed deprecated calls found"
+  soft_findings_count:
+    description: "Number of documentation-indicated deprecated calls found"
   sarif_path:
     description: "Path to generated SARIF file"
   comment_url:
     description: "URL of the posted PR comment"
+  audit_issue_url:
+    description: "URL of the updated audit issue"
 runs:
   using: "docker"
   image: "Dockerfile"

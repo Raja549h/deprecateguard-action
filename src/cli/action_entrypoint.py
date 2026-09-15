@@ -41,22 +41,26 @@ def main():
     with open(event_path, "r") as f:
         event_data = json.load(f)
         
-    if "pull_request" not in event_data:
-        print("Not a pull request, exiting.")
-        return
-        
-    pr_num = event_data["pull_request"]["number"]
-    
-    # 1. Diff Scoping: fetch PR diff
-    diff_url = f"https://api.github.com/repos/{repo_name}/pulls/{pr_num}/files"
-    req = urllib.request.Request(diff_url, headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github.v3+json"})
-    try:
-        with urllib.request.urlopen(req) as resp:
-            files_data = json.loads(resp.read().decode("utf-8"))
-            diff_files = set(f["filename"] for f in files_data if f["status"] != "removed")
-    except Exception as e:
-        print("Failed to get PR files:", e)
-        diff_files = None # Fallback to all files
+    mode = os.environ.get("INPUT_MODE", "pr-comment")
+    pr_num = None
+    diff_files = None
+    if mode == "pr-comment":
+        if "pull_request" not in event_data:
+            print("PR-comment mode: no pull request context, exiting. Use mode: scheduled-audit for whole-repo scans.")
+            return
+        pr_num = event_data["pull_request"]["number"]
+        # 1. Diff Scoping: fetch PR diff
+        diff_url = f"https://api.github.com/repos/{repo_name}/pulls/{pr_num}/files"
+        req = urllib.request.Request(diff_url, headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github.v3+json"})
+        try:
+            with urllib.request.urlopen(req) as resp:
+                files_data = json.loads(resp.read().decode("utf-8"))
+                diff_files = set(f["filename"] for f in files_data if f["status"] != "removed")
+        except Exception as e:
+            print("Failed to get PR files:", e)
+            diff_files = None # Fallback to all files
+    elif mode == "scheduled-audit":
+        pass # diff_files remains None (whole repo)
         
     # 2. Extract calls
     extractor = MultiLanguageExtractor("py")
@@ -84,35 +88,31 @@ def main():
                 except Exception:
                     pass
 
-    # 3. Label against real OpenAPI specs (Test 7: handle failure)
-    from real_spec_fetcher_fast import get_real_spec_version
-    try:
-        PROVIDER_SPECS = {
-            "stripe": "https://raw.githubusercontent.com/stripe/openapi/master/openapi/spec404_does_not_exist.json",
-            "twilio": "https://raw.githubusercontent.com/twilio/twilio-oas/main/spec/yaml/twilio_api_v2010.yaml",
-            "github": "https://raw.githubusercontent.com/github/rest-api-description/main/descriptions/api.github.com/api.github.com.json",
-            "anthropic": "https://raw.githubusercontent.com/anthropics/anthropic-openapi/main/openapi.yaml"
-        }
-        
-        # Cache versions to avoid redundant lookups
-        spec_versions = {}
-        for c in extracted:
-            canon = c.get("canonical_method", "")
-            provider = canon.split(".")[0].lower() if canon else ""
-            if provider in PROVIDER_SPECS:
-                if provider not in spec_versions:
-                    # Actually fetch it to prove we are doing real OpenAPI fetches
-                    spec_versions[provider] = get_real_spec_version(PROVIDER_SPECS[provider])
-                c["spec_version"] = spec_versions[provider]
-            else:
-                c["spec_version"] = "UNKNOWN"
-    except Exception as e:
-        print(f"Error fetching specs: {e}")
-        fail_comment = "## ⚠️ DeprecateGuard: API Deprecations Detected in PR\n\nScan could not complete — spec fetch failed."
-        post_or_update_comment(fail_comment, repo_name, pr_num, token)
-        sys.exit(0)
-
-    deprecated_findings = extracted
+    # 3. Label against real OpenAPI specs
+    import spec_analyzer
+    deprecated_findings = []
+    for c in extracted:
+        canon = c.get("canonical_method", "")
+        provider = canon.split(".")[0].lower() if canon else ""
+        endpoint_url = c.get("resolved_endpoint", "")
+        http_method = c.get("resolved_method", "POST")
+        analysis = spec_analyzer.analyze_endpoint(provider, endpoint_url, http_method)
+        if analysis:
+            if analysis["status"] == "spec_unavailable":
+                fail_comment = f"## ⚠️ DeprecateGuard: Scan could not complete — spec fetch failed for provider {analysis.get('provider', 'UNKNOWN')}. No findings reported."
+                post_or_update_comment(fail_comment, repo_name, pr_num, token)
+                sys.exit(0)
+            elif analysis["status"] == "deprecated":
+                c["finding_type"] = analysis["type"]
+                c["ground_truth_confidence"] = analysis["confidence"]
+                c["sarif_level"] = analysis["sarif_level"]
+                c["spec_date"] = analysis["date"]
+                c["spec_url"] = analysis["url"]
+                c["spec_version"] = analysis.get("spec_version", "UNKNOWN")
+                if analysis["type"] == "soft":
+                    c["soft_phrase"] = analysis["phrase"]
+                    c["soft_sentence"] = analysis["sentence"]
+                deprecated_findings.append(c)
     
     # 5. Emit SARIF
     generate_sarif(deprecated_findings, "deprecateguard_results.sarif")
@@ -120,7 +120,10 @@ def main():
     # 6. Generate PR Markdown Comment
     comment = generate_pr_comment(deprecated_findings, diff_files=diff_files, repo_full_name=repo_name)
     
+
     output_count = len(deprecated_findings)
+    hard_count = sum(1 for f in deprecated_findings if f.get("finding_type") == "hard")
+    soft_count = sum(1 for f in deprecated_findings if f.get("finding_type") == "soft")
     
     # 7. Post Comment / Deduplicate (Idempotency)
     comment_url = ""
@@ -132,14 +135,13 @@ def main():
             with urllib.request.urlopen(req) as resp:
                 comments = json.loads(resp.read().decode("utf-8"))
                 for c in comments:
-                    if c["user"]["login"] == "github-actions[bot]" and "⚠️ DeprecateGuard:" in c["body"]:
+                    if c["user"]["login"] == "github-actions[bot]" and "DeprecateGuard:" in c["body"]:
                         existing_comment_id = c["id"]
                         break
         except Exception:
             pass
             
         if existing_comment_id:
-            # Update existing comment
             update_url = f"https://api.github.com/repos/{repo_name}/issues/comments/{existing_comment_id}"
             req = urllib.request.Request(update_url, method="PATCH", data=json.dumps({"body": comment}).encode("utf-8"), headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github.v3+json", "Content-Type": "application/json"})
             try:
@@ -150,7 +152,6 @@ def main():
             except Exception as e:
                 print("Failed to update comment:", e)
         else:
-            # Create new comment
             req = urllib.request.Request(comments_url, data=json.dumps({"body": comment}).encode("utf-8"), headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github.v3+json", "Content-Type": "application/json"})
             try:
                 with urllib.request.urlopen(req) as resp:
@@ -159,17 +160,85 @@ def main():
                 print("Posted new PR comment.")
             except Exception as e:
                 print("Failed to post comment:", e)
-    else:
-        # Check if there is an existing comment we need to remove (since findings dropped to 0)
-        # Actually, standard practice is to leave it or update it to "No findings".
-        pass
-        
+                
     # 8. Set Outputs
     github_output = os.environ.get("GITHUB_OUTPUT")
     if github_output:
         with open(github_output, "a") as f:
             f.write(f"findings_count={output_count}\n")
+            f.write(f"hard_findings_count={hard_count}\n")
+            f.write(f"soft_findings_count={soft_count}\n")
             f.write(f"sarif_path=deprecateguard_results.sarif\n")
             f.write(f"comment_url={comment_url}\n")
+            f.write(f"audit_issue_url={audit_issue_url}\n")
             
+def post_or_update_comment(comment, repo_name, pr_num, token):
+    import urllib.request, json
+    comments_url = f"https://api.github.com/repos/{repo_name}/issues/{pr_num}/comments"
+    req = urllib.request.Request(comments_url, data=json.dumps({"body": comment}).encode("utf-8"), headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github.v3+json", "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req) as resp: pass
+    except Exception: pass
+    return ""
+
 if __name__ == "__main__": main()
+
+def post_or_update_audit_issue(repo_name, findings, token, run_url):
+    import urllib.request, json, os, datetime
+    from pr_commenter import generate_pr_comment
+    findings_body = generate_pr_comment(findings, repo_full_name=repo_name) or "No deprecated endpoints found."
+    
+    if "## ⚠️ DeprecateGuard: API Deprecations Detected in PR" in findings_body:
+        findings_body = findings_body.replace("## ⚠️ DeprecateGuard: API Deprecations Detected in PR\n\n", "")
+    
+    timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+    trigger = os.environ.get("GITHUB_EVENT_NAME", "manual")
+    commit_sha = os.environ.get("GITHUB_SHA", "unknown")
+    hard_count = sum(1 for f in findings if f.get("finding_type") == "hard")
+    soft_count = sum(1 for f in findings if f.get("finding_type") == "soft")
+    
+    body = f"## ⚠️ DeprecateGuard: Scheduled Audit Report\n\n"
+    body += f"**Last Scan Timestamp:** {timestamp}\n"
+    body += f"**Scan Trigger:** {trigger}\n"
+    body += f"**Commit SHA:** `{commit_sha}`\n"
+    body += f"**Run Logs:** [View Run]({run_url})\n\n"
+    body += f"**Findings:** {hard_count} hard, {soft_count} soft\n\n---\n\n"
+    body += findings_body
+    
+    title = "DeprecateGuard: Scheduled Audit Report"
+    
+    search_url = f"https://api.github.com/repos/{repo_name}/issues?state=all&creator=app/github-actions"
+    req = urllib.request.Request(search_url, headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github.v3+json"})
+    existing_issue_number = None
+    try:
+        with urllib.request.urlopen(req) as resp:
+            issues = json.loads(resp.read().decode("utf-8"))
+            for issue in issues:
+                if issue["title"] == title and "pull_request" not in issue:
+                    existing_issue_number = issue["number"]
+                    break
+    except Exception as e:
+        print("Failed to search issues:", e)
+        
+    if existing_issue_number:
+        url = f"https://api.github.com/repos/{repo_name}/issues/{existing_issue_number}"
+        req = urllib.request.Request(url, method="PATCH", data=json.dumps({"body": body, "state": "open"}).encode("utf-8"), headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github.v3+json", "Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                print(f"Updated existing audit issue #{existing_issue_number}")
+                return data.get("html_url", "")
+        except Exception as e:
+            print("Failed to update issue:", e)
+            return ""
+    else:
+        url = f"https://api.github.com/repos/{repo_name}/issues"
+        req = urllib.request.Request(url, method="POST", data=json.dumps({"title": title, "body": body}).encode("utf-8"), headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github.v3+json", "Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                print("Created new audit issue.")
+                return data.get("html_url", "")
+        except Exception as e:
+            print("Failed to create issue:", e)
+            return ""
