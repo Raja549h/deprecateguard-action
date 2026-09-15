@@ -183,7 +183,7 @@ def post_or_update_comment(comment, repo_name, pr_num, token):
     except Exception: pass
     return ""
 
-if __name__ == "__main__": main()
+
 
 def post_or_update_audit_issue(repo_name, findings, token, run_url):
     import urllib.request, json, os, datetime
@@ -244,3 +244,6 @@ def post_or_update_audit_issue(repo_name, findings, token, run_url):
         except Exception as e:
             print("Failed to create issue:", e)
             return ""
+
+
+if __name__ == "__main__": main()
