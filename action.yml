@@ -1,5 +1,9 @@
 name: "DeprecateGuard Scanner"
 description: "Zero-Exfiltration API Deprecation Scanner"
+author: "Raja549h"
+branding:
+  icon: "shield"
+  color: "orange"
 inputs:
   github_token:
     description: "GITHUB_TOKEN for posting PR comments"
