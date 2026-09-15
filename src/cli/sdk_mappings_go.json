@@ -1,0 +1,42 @@
+[
+    {
+        "method_path": "stripe.Charge.New",
+        "endpoint_template": "https://api.stripe.com/v1/charges",
+        "http_method": "POST",
+        "source_type": "manual",
+        "source_url": "https://pkg.go.dev/github.com/stripe/stripe-go/v74/charge#New",
+        "retrieved_date": "2026-09-15T00:00:00Z"
+    },
+    {
+        "method_path": "stripe.Customer.List",
+        "endpoint_template": "https://api.stripe.com/v1/customers",
+        "http_method": "GET",
+        "source_type": "manual",
+        "source_url": "https://pkg.go.dev/github.com/stripe/stripe-go/v74/customer#List",
+        "retrieved_date": "2026-09-15T00:00:00Z"
+    },
+    {
+        "method_path": "stripe.PaymentIntent.New",
+        "endpoint_template": "https://api.stripe.com/v1/payment_intents",
+        "http_method": "POST",
+        "source_type": "manual",
+        "source_url": "https://pkg.go.dev/github.com/stripe/stripe-go/v74/paymentintent#New",
+        "retrieved_date": "2026-09-15T00:00:00Z"
+    },
+    {
+        "method_path": "stripe.Subscription.New",
+        "endpoint_template": "https://api.stripe.com/v1/subscriptions",
+        "http_method": "POST",
+        "source_type": "manual",
+        "source_url": "https://pkg.go.dev/github.com/stripe/stripe-go/v74/subscription#New",
+        "retrieved_date": "2026-09-15T00:00:00Z"
+    },
+    {
+        "method_path": "client.Api.CreateMessage",
+        "endpoint_template": "https://api.twilio.com/2010-04-01/Accounts/{AccountSid}/Messages.json",
+        "http_method": "POST",
+        "source_type": "manual",
+        "source_url": "https://pkg.go.dev/github.com/twilio/twilio-go/rest/api/v2010#CreateMessage",
+        "retrieved_date": "2026-09-15T00:00:00Z"
+    }
+]

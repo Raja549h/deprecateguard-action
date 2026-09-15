@@ -2,6 +2,6 @@
 GitHub Action for DeprecateGuard
 
 ## Language Coverage
-Currently supports **Python** and **TypeScript/JavaScript**.
+Currently supports **Python**, **TypeScript/JavaScript**, and **Go**.
 
-*Note: Languages like Rust, Go, Java, C#, and others are NOT currently supported.*
+*Note: Languages like Rust, Java, C#, and Ruby are NOT currently supported.*

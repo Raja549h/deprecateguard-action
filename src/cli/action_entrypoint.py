@@ -1,6 +1,7 @@
 import os, json, urllib.request, urllib.parse, sys
 from multi_extractor import MultiLanguageExtractor
 from extractors.js_extractor import JSExtractor
+from extractors.go_extractor import GoExtractor
 from pr_commenter import generate_pr_comment
 from sarif_emitter import generate_sarif
 from dataclasses import asdict
@@ -57,7 +58,7 @@ def main():
     if mode == "pr-comment":
         diff_files = get_diff_files(repo_name, pr_num, token)
         if not diff_files:
-            print("No Python/JS/TS files found in PR diff.")
+            print("No Python/JS/TS/Go files found in PR diff.")
             if os.environ.get("GITHUB_OUTPUT"):
                 with open(os.environ.get("GITHUB_OUTPUT"), "a") as f:
                     f.write("findings_count=0\n")
@@ -69,12 +70,13 @@ def main():
     py_extractor = MultiLanguageExtractor("py")
     js_extractor = JSExtractor("javascript")
     ts_extractor = JSExtractor("typescript")
+    go_extractor = GoExtractor("go")
     
     extracted = []
     for root, dirs, files in os.walk(workspace):
         for file in files:
             ext = os.path.splitext(file)[1].lower()
-            if ext in [".py", ".js", ".jsx", ".ts", ".tsx"]:
+            if ext in [".py", ".js", ".jsx", ".ts", ".tsx", ".go"]:
                 path = os.path.join(root, file)
                 rel_path = os.path.relpath(path, workspace).replace("\\", "/")
                 # Skip if not in diff (Diff scoping performance optimization)
@@ -88,6 +90,8 @@ def main():
                         calls = js_extractor.scan_code(code, rel_path)
                     elif ext in [".ts", ".tsx"]:
                         calls = ts_extractor.scan_code(code, rel_path)
+                    elif ext == ".go":
+                        calls = go_extractor.scan_code(code, rel_path)
                     else:
                         calls = []
                         
