@@ -109,13 +109,22 @@ def main():
     for c in extracted:
         canon = c.get("canonical_method", "")
         provider = canon.split(".")[0].lower() if canon else ""
+        if provider == "client" or "twilio" in c.get("resolved_endpoint", ""):
+            provider = "twilio"
+        elif "stripe" in c.get("resolved_endpoint", ""):
+            provider = "stripe"
         endpoint_url = c.get("resolved_endpoint", "")
-        http_method = c.get("resolved_method", "POST")
+        http_method = c.get("http_method", "POST")
         analysis = spec_analyzer.analyze_endpoint(provider, endpoint_url, http_method)
         if analysis:
             if analysis["status"] == "spec_unavailable":
-                fail_comment = f"## ⚠️ DeprecateGuard: Scan could not complete — spec fetch failed for provider {analysis.get('provider', 'UNKNOWN')}. No findings reported."
-                post_or_update_comment(fail_comment, repo_name, pr_num, token)
+                fail_msg = f"Scan could not complete - spec fetch failed for provider {analysis.get('provider', 'UNKNOWN')}."
+                print(fail_msg)
+                fail_comment = f"## ⚠️ DeprecateGuard: {fail_msg} No findings reported."
+                if mode == "pr-comment":
+                    post_or_update_comment(fail_comment, repo_name, pr_num, token)
+                else:
+                    post_or_update_audit_issue(repo_name, [], token, f"https://github.com/{repo_name}/actions/runs/{os.environ.get('GITHUB_RUN_ID')}")
                 sys.exit(0)
             elif analysis["status"] == "deprecated":
                 c["finding_type"] = analysis["type"]

@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.env
+test_output.txt
+pr_comment.md
+error.log
