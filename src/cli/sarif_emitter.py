@@ -29,8 +29,10 @@ def generate_sarif(findings, output_file="deprecateguard.sarif"):
             print(f"Suppressing finding for {ce} due to UNKNOWN spec version.")
             continue
             
+        finding_type = f.get("finding_type", "hard")
+        prefix = "DG-" if finding_type == "hard" else "DG-SOFT-"
         canon = f.get("canonical_method", f["callee_expression"]).upper().replace(".", "-")
-        rule_id = f"DG-{canon}"
+        rule_id = f"{prefix}{canon}"
         ep = f["resolved_endpoint"]
         
         if rule_id not in rule_map:
@@ -39,10 +41,12 @@ def generate_sarif(findings, output_file="deprecateguard.sarif"):
             
         ce = f["callee_expression"]
         msg = f"Call to deprecated endpoint {ep} via SDK method {ce}."
+        if finding_type == "soft":
+            msg += f" (Soft Deprecation: {f.get('soft_phrase', '')})"
         
         res = {
             "ruleId": rule_id,
-            "level": "warning",
+            "level": f.get("sarif_level", "warning"),
             "message": {"text": msg},
             "locations": [{
                 "physicalLocation": {

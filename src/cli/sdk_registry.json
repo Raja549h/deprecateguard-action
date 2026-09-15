@@ -79,5 +79,25 @@
     "source_url": "https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/s3/2006-03-01/service-2.json",
     "retrieved_date": "2026-09-14",
     "source_type": "machine-readable"
+  },
+  {
+    "sdk_name": "stripe",
+    "sdk_version_range": ">=7",
+    "method_path": "stripe.Customer.list_bank_accounts",
+    "http_method": "GET",
+    "endpoint_template": "https://api.stripe.com/v1/customers/{customer}/bank_accounts",
+    "source_url": "",
+    "retrieved_date": "2026-09-14",
+    "source_type": "machine-readable"
+  },
+  {
+    "sdk_name": "stripe",
+    "sdk_version_range": ">=7",
+    "method_path": "stripe.Customer.list",
+    "http_method": "GET",
+    "endpoint_template": "https://api.stripe.com/v1/customers",
+    "source_url": "",
+    "retrieved_date": "2026-09-14",
+    "source_type": "machine-readable"
   }
 ]

@@ -3,6 +3,7 @@ SDK_MAPPINGS = {
     "stripe.Charge.create": {"method": "POST", "url": "https://api.stripe.com/v1/charges"},
     "stripe.Charge.list": {"method": "GET", "url": "https://api.stripe.com/v1/charges"},
     "stripe.Customer.list": {"method": "GET", "url": "https://api.stripe.com/v1/customers"},
+    "stripe.Customer.list_bank_accounts": {"method": "GET", "url": "https://api.stripe.com/v1/customers/{customer}/bank_accounts"},
     
     # JS/TS
     "stripe.charges.create": {"method": "POST", "url": "https://api.stripe.com/v1/charges"},
